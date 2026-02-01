@@ -224,7 +224,6 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
   await analyzeAsins(getProductListElements());
   while (loadMore()) {
     if (hasTimedOut) {
-      break;
       return;
     }
     await sleep(500);

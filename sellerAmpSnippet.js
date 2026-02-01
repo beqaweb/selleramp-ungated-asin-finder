@@ -91,7 +91,7 @@ const typeSearch = async (inputText) => {
   searchButton.click();
 };
 
-const waitForOffersToLoad = async (asinLi, timeout = 30) => {
+const waitForOffersToLoad = async (asinLi, timeout = 10) => {
   const isLoading = () =>
     asinLi
       .querySelector(".pl-offers-col")
@@ -102,6 +102,7 @@ const waitForOffersToLoad = async (asinLi, timeout = 30) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     counter++;
   }
+  return isLoading();
 };
 
 const hasOffers = (asinLi) => {
@@ -164,7 +165,8 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
     for (const asinLi of asinList) {
       if (hasTimedOut) return;
 
-      await waitForOffersToLoad(asinLi);
+      const stillLoading = await waitForOffersToLoad(asinLi);
+      if (stillLoading) continue;
 
       if (!hasOffers(asinLi)) continue;
 

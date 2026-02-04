@@ -1,4 +1,6 @@
 const cheerio = require("cheerio");
+const puppeteer = require("puppeteer");
+const { setTimeout } = require("node:timers/promises");
 
 // Check if ASIN is ungated on Amazon Seller Central
 const isUngatedASIN = async (asin, condition = "new") => {
@@ -32,17 +34,27 @@ const isUngatedASIN = async (asin, condition = "new") => {
   return false;
 };
 
-// Fetch and parse Amazon.ca product page
+// Fetch and parse Amazon.ca product page using Puppeteer
 const fetchAmazonProduct = async (asin) => {
   const url = `https://www.amazon.ca/dp/${asin}`;
+  let browser;
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--no-first-run",
+        "--no-default-browser-check",
+      ],
     });
-    const html = await response.text();
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 1080 });
+
+    await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+
+    const html = await page.content();
     const $ = cheerio.load(html);
 
     const title = $("#productTitle").first().text().trim();
@@ -64,6 +76,8 @@ const fetchAmazonProduct = async (asin) => {
       success: false,
       error: error.message,
     };
+  } finally {
+    if (browser) await browser.close();
   }
 };
 

@@ -1,5 +1,9 @@
 const cheerio = require("cheerio");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+
+// Add stealth plugin to hide automation
+puppeteer.use(StealthPlugin());
 
 // Generic function to search retail stores (static HTML)
 const searchRetailStore = async (storeUrl) => {
@@ -29,18 +33,20 @@ const searchRetailStore = async (storeUrl) => {
 };
 
 // Function for client-side rendered stores (uses headless browser)
-const searchRetailStoreClientSide = async (
-  storeUrl,
-  waitForSelector = null,
-  needsReload = false,
-  timeout = 150000,
-  geolocation = { latitude: 43.6683343, longitude: -79.3354333 }, // Toronto, ON by default
-) => {
+const searchRetailStoreClientSide = async (storeUrl, options = {}) => {
+  const {
+    waitForSelector = null,
+    needsReload = false,
+    timeout = 150000,
+    geolocation = { latitude: 43.6683343, longitude: -79.3354333 }, // Toronto, ON by default
+    doExtraSteps = () => Promise.resolve(),
+  } = options;
+
   let browser;
   let context;
   try {
     browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
@@ -65,6 +71,10 @@ const searchRetailStoreClientSide = async (
     // reload just in case of any dynamic content and edge cases
     if (needsReload) {
       await page.reload({ waitUntil: "networkidle2", timeout });
+    }
+
+    if (doExtraSteps) {
+      await doExtraSteps(page);
     }
 
     if (waitForSelector) {
@@ -97,12 +107,15 @@ const searchRetailStoreClientSide = async (
 };
 
 // Join query words with + for URL encoding
-const normalizeQuery = (query) => {
+const normalizeQuery = (query, separator = "+") => {
+  if (separator === " ") {
+    return encodeURIComponent(query.trim());
+  }
   return query
     .trim()
     .split(/\s+/)
     .map((word) => encodeURIComponent(word))
-    .join("+");
+    .join(separator);
 };
 
 // Calculate string similarity using Levenshtein distance

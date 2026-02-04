@@ -49,17 +49,17 @@ const addAnalyzedAsin = (asin) => {
   localStorage.setItem("ANALYZED_ASINS", JSON.stringify(asins));
 };
 
-const getUngatedAsins = () => {
-  return localStorage.getItem("UNGATED_ASINS")
-    ? JSON.parse(localStorage.getItem("UNGATED_ASINS"))
+const getFilteredAsins = () => {
+  return localStorage.getItem("FILTERED_ASINS")
+    ? JSON.parse(localStorage.getItem("FILTERED_ASINS"))
     : [];
 };
 
-const addUngatedAsin = (asin) => {
-  const asins = getUngatedAsins();
+const addFilteredAsin = (asin) => {
+  const asins = getFilteredAsins();
   if (asins.includes(asin)) return;
   asins.push(asin);
-  localStorage.setItem("UNGATED_ASINS", JSON.stringify(asins));
+  localStorage.setItem("FILTERED_ASINS", JSON.stringify(asins));
 };
 
 if (typeof sleep === "undefined")
@@ -70,6 +70,13 @@ const isUngatedAsin = async (asin, condition = "new") => {
   const response = await fetch(url);
   const data = await response.json();
   return data.isUngated;
+};
+
+const isAvailableInCanada = async (asin, condition = "new") => {
+  const url = `http://localhost:3000/api/asin/availability-canada?asin=${asin}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  return data.availableInCanada;
 };
 
 const waitForProductList = async (timeout = 30) => {
@@ -189,7 +196,8 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
 
       try {
         const isUngated = await isUngatedAsin(asin);
-        if (isUngated) addUngatedAsin(asin);
+        const isAvailable = await isAvailableInCanada(asin);
+        if (isAvailable && isUngated) addFilteredAsin(asin);
       } catch {
         return;
       }

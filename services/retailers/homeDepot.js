@@ -5,14 +5,12 @@ const {
 } = require("./base");
 
 const searchHomeDepot = async (productTitle) => {
-  const query = normalizeQuery(productTitle);
+  const query = normalizeQuery(productTitle, " ");
   const storeUrl = `https://www.homedepot.ca/search?q=${query}`;
 
-  // Use client-side rendering function since Canadian Tire loads products dynamically
-  const result = await searchRetailStoreClientSide(
-    storeUrl,
-    "acl-product-card-group",
-  );
+  const result = await searchRetailStoreClientSide(storeUrl, {
+    waitForSelector: "acl-product-card-group",
+  });
 
   if (!result.success) {
     return {

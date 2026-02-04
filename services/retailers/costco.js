@@ -1,21 +1,27 @@
-const {
-  searchRetailStoreClientSide,
-  normalizeQuery,
-  analyzeProductMatch,
-} = require("./base");
+const { analyzeProductMatch, searchRetailStoreClientSide } = require("./base");
 
-const searchCanadianTire = async (productTitle) => {
-  const query = normalizeQuery(productTitle);
-  const storeUrl = `https://www.canadiantire.ca/en/search-results.html?q=${query}`;
+const searchCostco = async (productTitle) => {
+  const storeUrl = "https://www.costco.ca";
+
+  const doExtraSteps = async (page) => {
+    const searchInputSelector = 'input[placeholder*="Search"]';
+    await page.waitForSelector(searchInputSelector, { timeout: 10000 });
+    await page.click(searchInputSelector, { clickCount: 3 });
+    await page.type(searchInputSelector, productTitle);
+    await Promise.all([
+      page.keyboard.press("Enter"),
+      page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 }),
+    ]);
+  };
 
   const result = await searchRetailStoreClientSide(storeUrl, {
-    waitForSelector: '[data-testid="product-grids"]',
-    needsReload: true,
+    waitForSelector: "#productList",
+    doExtraSteps,
   });
 
   if (!result.success) {
     return {
-      store: "Canadian Tire",
+      store: "Costco",
       available: false,
       error: result.error,
     };
@@ -23,13 +29,11 @@ const searchCanadianTire = async (productTitle) => {
 
   const $ = result.$;
 
-  const searchResults = $(
-    '#product-listing-panel ul li[data-testid="product-grids"]',
-  );
+  const searchResults = $("#productList > div");
 
   if (searchResults.length === 0) {
     return {
-      store: "Canadian Tire",
+      store: "Costco",
       available: false,
       productCount: 0,
       products: [],
@@ -39,20 +43,18 @@ const searchCanadianTire = async (productTitle) => {
   const products = [];
   const matchedProducts = [];
 
-  searchResults.slice(0, 10).each((_index, element) => {
-    const productName = $(element)
-      .find(".nl-product-title-sku")
-      .first()
-      .text()
-      .trim();
+  searchResults.slice(0, 8).each((_index, element) => {
+    const productName = $(element).find("h3").first().text().trim();
 
     const productPriceRaw = $(element)
-      .find('[data-testid="priceTotal"]')
+      .find("[data-testid*=Text_Price]")
       .first()
       .text()
       .trim();
-    const price = productPriceRaw.match(/\$(\d+(\.\d+)?)/);
-    const productPrice = price ? Number(price[1]) : null;
+    const price = productPriceRaw.match(
+      /\$(\d{1,3}(,\d{3})*(\.\d+)?|\d+(\.\d+)?)/,
+    );
+    const productPrice = price ? Number(price[1].replace(/,/g, "")) : null;
 
     if (productName || productPrice) {
       const matchAnalysis = analyzeProductMatch(productTitle, productName);
@@ -77,7 +79,7 @@ const searchCanadianTire = async (productTitle) => {
   const isAvailable = matchedProducts.length > 0;
 
   return {
-    store: "Canadian Tire",
+    store: "Costco",
     available: isAvailable,
     productCount: products.length,
     matchedCount: matchedProducts.length,
@@ -89,5 +91,5 @@ const searchCanadianTire = async (productTitle) => {
 };
 
 module.exports = {
-  searchCanadianTire,
+  searchCostco,
 };

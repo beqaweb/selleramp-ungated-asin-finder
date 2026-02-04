@@ -4,20 +4,19 @@ const {
   analyzeProductMatch,
 } = require("./base");
 
-const searchCanadianTire = async (productTitle) => {
+const searchHomeDepot = async (productTitle) => {
   const query = normalizeQuery(productTitle);
-  const storeUrl = `https://www.canadiantire.ca/en/search-results.html?q=${query}`;
+  const storeUrl = `https://www.homedepot.ca/search?q=${query}`;
 
   // Use client-side rendering function since Canadian Tire loads products dynamically
   const result = await searchRetailStoreClientSide(
     storeUrl,
-    '[data-testid="product-grids"]',
-    true,
+    "acl-product-card-group",
   );
 
   if (!result.success) {
     return {
-      store: "Canadian Tire",
+      store: "Home Depot",
       available: false,
       error: result.error,
     };
@@ -25,13 +24,11 @@ const searchCanadianTire = async (productTitle) => {
 
   const $ = result.$;
 
-  const searchResults = $(
-    '#product-listing-panel ul li[data-testid="product-grids"]',
-  );
+  const searchResults = $("acl-product-card-group article");
 
   if (searchResults.length === 0) {
     return {
-      store: "Canadian Tire",
+      store: "Home Depot",
       available: false,
       productCount: 0,
       products: [],
@@ -42,19 +39,25 @@ const searchCanadianTire = async (productTitle) => {
   const matchedProducts = [];
 
   searchResults.slice(0, 10).each((_index, element) => {
-    const productName = $(element)
-      .find(".nl-product-title-sku")
-      .first()
-      .text()
-      .trim();
+    const productName = $(element).find("h2").first().text().trim();
 
-    const productPriceRaw = $(element)
-      .find('[data-testid="priceTotal"]')
+    const productPriceDollarsRaw = $(element)
+      .find(".acl-product-card__price-dollars")
       .first()
       .text()
       .trim();
-    const price = productPriceRaw.match(/\$(\d+(\.\d+)?)/);
-    const productPrice = price ? Number(price[1]) : null;
+    const productPriceDollars = productPriceDollarsRaw.match(/\$(\d+)/);
+    const productPriceCentsRaw = $(element)
+      .find(".acl-product-card__price-cents")
+      .first()
+      .text()
+      .trim();
+    const productPriceCents = productPriceCentsRaw.match(/(\d{2})/);
+    const price =
+      productPriceDollars && productPriceCents
+        ? `${productPriceDollars[1]}.${productPriceCents[1]}`
+        : null;
+    const productPrice = price ? Number(price) : null;
 
     if (productName || productPrice) {
       const matchAnalysis = analyzeProductMatch(productTitle, productName);
@@ -79,7 +82,7 @@ const searchCanadianTire = async (productTitle) => {
   const isAvailable = matchedProducts.length > 0;
 
   return {
-    store: "Canadian Tire",
+    store: "Home Depot",
     available: isAvailable,
     productCount: products.length,
     matchedCount: matchedProducts.length,
@@ -91,5 +94,5 @@ const searchCanadianTire = async (productTitle) => {
 };
 
 module.exports = {
-  searchCanadianTire,
+  searchHomeDepot,
 };

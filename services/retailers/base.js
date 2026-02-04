@@ -32,8 +32,9 @@ const searchRetailStore = async (storeUrl) => {
 const searchRetailStoreClientSide = async (
   storeUrl,
   waitForSelector = null,
-  timeout = 10000,
-  geolocation = { latitude: 43.6629, longitude: -79.3957 }, // Toronto, ON by default
+  needsReload = false,
+  timeout = 150000,
+  geolocation = { latitude: 43.6683343, longitude: -79.3354333 }, // Toronto, ON by default
 ) => {
   let browser;
   let context;
@@ -60,9 +61,11 @@ const searchRetailStoreClientSide = async (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     });
 
-    await page.goto(storeUrl, { waitUntil: "load", timeout });
+    await page.goto(storeUrl, { waitUntil: "networkidle2", timeout });
     // reload just in case of any dynamic content and edge cases
-    await page.reload({ waitUntil: "load", timeout });
+    if (needsReload) {
+      await page.reload({ waitUntil: "networkidle2", timeout });
+    }
 
     if (waitForSelector) {
       try {
@@ -204,7 +207,7 @@ const analyzeProductMatch = (originalTitle, foundProductName) => {
 
   return {
     confidence: Math.round(confidence * 100) / 100, // Round to 2 decimals
-    available: confidence >= 0.5, // True if confidence >= 50%
+    available: confidence >= 0.4, // True if confidence >= 40%
     details: {
       directSimilarity: Math.round(directSimilarity * 100),
       keywordMatches: `${matchedKeywords}/${originalKeywords.size}`,

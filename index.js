@@ -8,6 +8,10 @@ const PORT = process.env.PORT || 3000;
 const { isUngatedASIN, fetchAmazonProduct } = require("./services/amazon");
 const { searchWalmart } = require("./services/retailers/walmart");
 const { searchCanadianTire } = require("./services/retailers/canadianTire");
+const { searchHomeDepot } = require("./services/retailers/homeDepot");
+
+// Array of store search functions for dynamic mapping
+const storeSearchers = [searchWalmart, searchCanadianTire, searchHomeDepot];
 
 // Middleware
 app.use(
@@ -69,15 +73,10 @@ app.get("/api/asin/availability", async (req, res) => {
       });
     }
 
-    // Search across Canadian retail stores
-    const walmartAvailability = await searchWalmart(amazonProduct.title);
-    const canadianTireAvailability = await searchCanadianTire(
-      amazonProduct.title,
+    // Search across all retail stores in parallel
+    const storeResults = await Promise.all(
+      storeSearchers.map((searcher) => searcher(amazonProduct.title)),
     );
-
-    // Calculate overall availability probability
-    // Start with the store results and accumulate
-    const storeResults = [walmartAvailability, canadianTireAvailability];
     const availableStores = storeResults.filter(
       (store) => store.available,
     ).length;

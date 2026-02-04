@@ -4,6 +4,11 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Services
+const { isUngatedASIN, fetchAmazonProduct } = require("./services/amazon");
+const { searchWalmart } = require("./services/retailers/walmart");
+const { searchCanadianTire } = require("./services/retailers/canadianTire");
+
 // Middleware
 app.use(
   cors({
@@ -24,38 +29,6 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "Server is running" });
 });
 
-// Helper function to check if ASIN is ungated
-const isUngatedASIN = async (asin, condition = "new") => {
-  const amazonCookies = process.env.AMAZON_COOKIES;
-
-  if (!amazonCookies) {
-    throw new Error("AMAZON_COOKIES environment variable is not set");
-  }
-
-  const url = `https://sellercentral.amazon.ca/productsearch/v2/search?q=${asin}&page=1&`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json",
-      Cookie: amazonCookies,
-    },
-  });
-  const data = await response.json();
-  const products = data.products;
-  if (products.length === 0) return false;
-  const product = products.find((product) => product.asin === asin.trim());
-  if (!product) return false;
-  const qualificationMessages = product.qualificationMessages || [];
-  const isRestricted = qualificationMessages.some((item) =>
-    item.qualificationMessage.toLowerCase().includes("need approval"),
-  );
-  if (!product.pathToSellUrl && !isRestricted) {
-    return true;
-  }
-  return false;
-};
-
 // Endpoint to check ungate status for ASIN
 app.get("/api/asin/ungate-status", async (req, res) => {
   try {
@@ -74,6 +47,57 @@ app.get("/api/asin/ungate-status", async (req, res) => {
   } catch (error) {
     console.error("Error checking ungate status:", error);
     res.status(500).json({ error: "Failed to check ungate status" });
+  }
+});
+
+// Endpoint to check product availability across Canadian retail stores
+app.get("/api/asin/availability", async (req, res) => {
+  try {
+    const { asin } = req.query;
+
+    if (!asin) {
+      return res.status(400).json({ error: "ASIN parameter is required" });
+    }
+
+    // Fetch product from Amazon.ca
+    const amazonProduct = await fetchAmazonProduct(asin);
+
+    if (!amazonProduct.success) {
+      return res.status(404).json({
+        error: "Could not fetch product from Amazon.ca",
+        details: amazonProduct.error,
+      });
+    }
+
+    // Search across Canadian retail stores
+    const walmartAvailability = await searchWalmart(amazonProduct.title);
+    const canadianTireAvailability = await searchCanadianTire(
+      amazonProduct.title,
+    );
+
+    // Calculate overall availability probability
+    // Start with the store results and accumulate
+    const storeResults = [walmartAvailability, canadianTireAvailability];
+    const availableStores = storeResults.filter(
+      (store) => store.available,
+    ).length;
+    const totalStores = storeResults.length;
+    const availabilityProbability = (availableStores / totalStores) * 100;
+
+    res.json({
+      asin,
+      productTitle: amazonProduct.title,
+      productPrice: amazonProduct.price,
+      storeAvailability: storeResults,
+      availabilityProbability: availabilityProbability.toFixed(2) + "%",
+      summary: {
+        availableIn: availableStores,
+        totalStoresChecked: totalStores,
+      },
+    });
+  } catch (error) {
+    console.error("Error checking availability:", error);
+    res.status(500).json({ error: "Failed to check product availability" });
   }
 });
 

@@ -131,7 +131,19 @@ const getSellerRatingFromTooltipText = (tooltipText) => {
   return match ? Number(match[1].replace(/,/g, "")) : null;
 };
 
-const merchantsToBeAnalyzed = [...getMarchants()];
+const getLastAnalyzedMerchantId = () => {
+  const merchants = getAnalyzedMerchants();
+  return merchants[merchants.length - 1];
+};
+
+const lastAnalyzedMerchantId = getLastAnalyzedMerchantId();
+
+let merchantsToBeAnalyzed = [...getMarchants()];
+merchantsToBeAnalyzed = merchantsToBeAnalyzed.slice(
+  merchantsToBeAnalyzed.findIndex(
+    (merchantId) => merchantId === lastAnalyzedMerchantId,
+  ),
+);
 
 const queueUpMerchant = (merchantId) => {
   if (!merchantsToBeAnalyzed.includes(merchantId)) {

@@ -1,6 +1,8 @@
 const RUN_FOR = 60 * 5; // mins
 const RATING_RANGE = [0, 10];
 
+const SKIP_SELLER_PATTERNS = ["llc", "usa"];
+
 let hasTimedOut = false;
 
 setTimeout(
@@ -10,14 +12,14 @@ setTimeout(
   RUN_FOR * 60 * 1000,
 );
 
-const getMarchants = () => {
+const getMerchants = () => {
   return localStorage.getItem("MERCHANTS")
     ? JSON.parse(localStorage.getItem("MERCHANTS"))
     : [];
 };
 
 const addMerchant = (merchantId) => {
-  const merchants = getMarchants();
+  const merchants = getMerchants();
   if (merchants.includes(merchantId)) return;
   merchants.push(merchantId);
   localStorage.setItem("MERCHANTS", JSON.stringify(merchants));
@@ -72,8 +74,8 @@ const isUngatedAsin = async (asin, condition = "new") => {
   return data.isUngated;
 };
 
-const isAvailableInCanada = async (asin, condition = "new") => {
-  const url = `http://localhost:3000/api/asin/availability-canada?asin=${asin}`;
+const isAvailableInCanada = async (asin) => {
+  const url = `http://localhost:3000/api/asin/availability?asin=${asin}`;
   const response = await fetch(url);
   const data = await response.json();
   return data.availableInCanada;
@@ -86,6 +88,13 @@ const waitForProductList = async (timeout = 30) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     counter++;
   }
+};
+
+const hasProducts = () => {
+  return !document
+    .querySelector("#productList")
+    .innerText.toLowerCase()
+    .includes("no results were found");
 };
 
 const typeSearch = async (inputText) => {
@@ -138,6 +147,10 @@ const getSellerRatingFromTooltipText = (tooltipText) => {
   return match ? Number(match[1].replace(/,/g, "")) : null;
 };
 
+const getSellerNameFromTooltipText = (tooltipText) => {
+  return tooltipText.split("<br>")[0];
+};
+
 const getLastAnalyzedMerchantId = () => {
   const merchants = getAnalyzedMerchants();
   return merchants[merchants.length - 1];
@@ -145,7 +158,7 @@ const getLastAnalyzedMerchantId = () => {
 
 const lastAnalyzedMerchantId = getLastAnalyzedMerchantId();
 
-let merchantsToBeAnalyzed = [...getMarchants()];
+let merchantsToBeAnalyzed = [...getMerchants()];
 merchantsToBeAnalyzed = merchantsToBeAnalyzed.slice(
   merchantsToBeAnalyzed.findIndex(
     (merchantId) => merchantId === lastAnalyzedMerchantId,
@@ -178,6 +191,11 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
 
   await waitForProductList();
 
+  if (!hasProducts()) {
+    analyzeMerchant(merchantsToBeAnalyzed.shift());
+    return;
+  }
+
   const analyzeAsins = async (asinList) => {
     if (hasTimedOut) return;
 
@@ -196,8 +214,12 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
 
       try {
         const isUngated = await isUngatedAsin(asin);
-        const isAvailable = await isAvailableInCanada(asin);
-        if (isAvailable && isUngated) addFilteredAsin(asin);
+        if (isUngated) {
+          const isAvailable = await isAvailableInCanada(asin);
+          if (isAvailable) {
+            addFilteredAsin(asin);
+          }
+        }
       } catch {
         return;
       }
@@ -214,14 +236,24 @@ const analyzeMerchant = async (merchantId, isInitial = false) => {
         const tooltipEl = sellerIdTd.querySelector('[data-toggle="tooltip"]');
         if (tooltipEl.getAttribute("is-amazon") === "true") continue;
 
-        const RATING_FROM = RATING_RANGE[0];
-        const RATING_TO = RATING_RANGE[1];
-
         const tooltipText = tooltipEl.getAttribute("data-original-title");
+
+        const sellerName = getSellerNameFromTooltipText(tooltipText);
+
+        if (
+          SKIP_SELLER_PATTERNS.some((pattern) =>
+            sellerName.toLowerCase().includes(pattern.toLowerCase()),
+          )
+        ) {
+          continue;
+        }
 
         if (tooltipText.trim().startsWith(sellerId)) continue;
 
         const rating = getSellerRatingFromTooltipText(tooltipText);
+
+        const RATING_FROM = RATING_RANGE[0];
+        const RATING_TO = RATING_RANGE[1];
 
         if (!rating) {
           // new seller

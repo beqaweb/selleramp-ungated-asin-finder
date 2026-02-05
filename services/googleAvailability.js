@@ -143,10 +143,12 @@ const userDataDir = require("path").join(
   require("os").tmpdir(),
   "puppeteer-profile",
 );
+// const userDataDir = `${require("os").homedir()}\\AppData\\Local\\Google\\Chrome\\User Data`;
 
 async function connectToChrome() {
   // Spawn Chrome process with debugging port
   const headless = true;
+  // const profileDir = "Profile 14";
   const cmd = `"${chromePath}" --remote-debugging-port=${debuggingPort} --user-data-dir="${userDataDir}" --no-first-run --no-default-browser-check ${headless ? "--headless=new" : ""} about:blank`;
   exec(cmd);
 

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const { setTimeout } = require("node:timers/promises");
 require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -146,6 +147,9 @@ app.get("/api/asin/filter-available", async (req, res) => {
         );
         console.error(`Error processing ${asin}:`, error.message);
       }
+
+      // Add interval between ASIN checks (in milliseconds)
+      await setTimeout(2000);
     }
 
     // Close browser after all ASINs are processed
